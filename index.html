@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>3D Annulus Doublet Mode Visualizer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.159.0/three.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; }
+        canvas { display: block; }
+        .controls { margin: 10px; }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        Mode (m): <input type="number" id="modeNumber" value="3" min="1" step="1">&nbsp;
+        A: <input type="number" id="amplitudeA" value="1" step="0.1">&nbsp;
+        B: <input type="number" id="amplitudeB" value="0.5" step="0.1">&nbsp;
+        Frequency (ω): <input type="number" id="frequency" value="1.0" step="0.1"> rad/s
+    </div>
+
+    <script>
+        // Setup scene
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight - 50);
+        document.body.appendChild(renderer.domElement);
+
+        camera.position.set(0, 0, 20);
+        camera.lookAt(0, 0, 0);
+
+        // Parameters
+        const radiusInner = 5;
+        const radiusOuter = 7;
+        const numRadialSegments = 50;
+        const numThetaSegments = 100;
+        let time = 0;
+
+        // Create 3D annulus geometry
+        const geometry = new THREE.CylinderGeometry(radiusOuter, radiusInner, 1, numThetaSegments, 1, true);
+        geometry.rotateX(Math.PI / 2);
+
+        const positions = geometry.attributes.position.array;
+        const colors = new Float32Array(positions.length);
+
+        const material = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, wireframe: false });
+        const mesh = new THREE.Mesh(geometry, material);
+        scene.add(mesh);
+
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+        // Sliders
+        const modeInput = document.getElementById('modeNumber');
+        const amplitudeAInput = document.getElementById('amplitudeA');
+        const amplitudeBInput = document.getElementById('amplitudeB');
+        const frequencyInput = document.getElementById('frequency');
+
+        // Compute displacement z(theta, t)
+        function computeZ(theta, t) {
+            const m = parseInt(modeInput.value);
+            const omega = parseFloat(frequencyInput.value);
+            const A = parseFloat(amplitudeAInput.value);
+            const B = parseFloat(amplitudeBInput.value);
+
+            return A * Math.cos(m * theta - omega * t) + B * Math.sin(m * theta - omega * t);
+        }
+
+        // Update ring geometry
+        function updateRing() {
+            const m = parseInt(modeInput.value);
+            const thetaStep = (2 * Math.PI) / numThetaSegments;
+
+            for (let i = 0; i < positions.length / 3; i++) {
+                const x = positions[i * 3];
+                const y = positions[i * 3 + 1];
+                const theta = Math.atan2(y, x);
+
+                const z = computeZ(theta, time);
+                positions[i * 3 + 2] = z;
+
+                const colorValue = (z + 1) / 2; // normalize to [0, 1]
+                colors[i * 3 + 0] = 1 - colorValue;
+                colors[i * 3 + 1] = 0;
+                colors[i * 3 + 2] = colorValue;
+            }
+
+            geometry.attributes.position.needsUpdate = true;
+            geometry.attributes.color.needsUpdate = true;
+        }
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            time += 0.05;
+
+            updateRing();
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / (window.innerHeight - 50);
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight - 50);
+        });
+    </script>
+</body>
+</html>
